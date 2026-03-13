@@ -1,0 +1,100 @@
+tosca_definitions_version: dell_1_1
+
+description: >-
+ Deploy a vCenter VM from a template.
+
+imports:
+  - dell/types/types.yaml
+  - plugin:vsphere-plugin
+
+inputs:
+
+  vsphere_secret_name:
+    type: string
+    display_label: vSphere Secret Name
+    description: The name of the secret containing the vSphere credentials in the EO.
+    default: vcenter-secret
+
+  vm_name:
+    type: string
+    display_label: VM Name
+    description: Name of the virtual machine to be created
+    default: test-vm
+  
+  template_name:
+    type: string
+    display_label: Template Name
+    description: The VMware vSphere template name to base the new VM off of.
+    required: true
+    default: ubuntu_22.04
+  
+  cpu_count:
+    type: integer
+    display_label: CPU Count
+    description: Number of CPUs to allocate to the VM
+    default: 1
+    constraints:
+      - valid_values: [1, 2, 4, 8]
+  
+  memory_size:
+    type: integer
+    display_label: Memory Size (MB)
+    description: Amount of memory to allocate to the VM in MB
+    default: 1024
+    constraints:
+      - valid_values: [1024, 2048, 4096, 8192]
+
+  disk_size:
+    type: integer
+    display_label: Disk Size (GB)
+    description: Size of the VM disk in GB
+    default: 16
+    constraints:
+      - valid_values: [16, 32, 64, 128]
+
+  management_network:
+    type: string
+    display_label: Management Network
+    description: The name of the management network to connect the VM to
+    default: VM Network
+
+  datastore_name:
+    type: string
+    display_label: Datastore Name
+    description: The name of the datastore where the VM should be placed
+    default: datastore1
+  
+dsl_definitions:
+  connection_config: &connection_config
+    get_secret: vcenter-secret
+
+node_templates:
+  datastore:
+    type: dell.nodes.vsphere.Datastore
+    properties:
+      connection_config: *connection_config
+      name: { get_input: datastore_name }
+  vm:
+    type: dell.nodes.vsphere.Server
+    properties:
+      connection_config: *connection_config
+      agent_config:
+        install_method: none
+      server:
+        name: { get_input: vm_name }
+        template: { get_input: template_name }
+        cpus: { get_input: cpu_count }
+        memory: { get_input: memory_size }
+        disk_size: { get_input: disk_size }
+      networking:
+        connect_networks:
+          - name: { get_input: management_network }
+            switch_distributed: false
+            external: true
+            management: true
+            use_dhcp: true
+
+capabilities:
+  vm_ip:
+    description: The VM IP address
+    value: { get_attribute: [ vm, ip ] }
